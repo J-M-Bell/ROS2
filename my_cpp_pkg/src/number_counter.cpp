@@ -1,5 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "example_interfaces/msg/int64.hpp"
+#include "example_interfaces/srv/set_bool.hpp"
 
 using namespace std::placeholders;
 using namespace std::chrono_literals;
@@ -16,25 +17,46 @@ public:
 
         publisher_ = this->create_publisher<example_interfaces::msg::Int64>(
             "number_count", 10);
+
+        server_ = this->create_service<example_interfaces::srv::SetBool>(
+            "reset_counter",
+            std::bind(&NumberCounterNode::callbackResetCounter, this, _1, _2));
+    
         RCLCPP_INFO(this->get_logger(), "Number counter has been started.");
+
     }
 
 private:
     void callbackNumbers(const example_interfaces::msg::Int64::SharedPtr msg)
     {
+        auto msgNumber = example_interfaces::msg::Int64();
         newNumber_ = msg->data;
         msg->data = newNumber_ + (counter_ * 2);
         counter_++;
-        publishNewNumber(msg);
+        msgNumber.data = msg->data;
+        // publishNewNumber(msg);
+        publisher_->publish(msgNumber);
     }
 
-    void publishNewNumber(const example_interfaces::msg::Int64::SharedPtr msg)
+    void callbackResetCounter(const example_interfaces::srv::SetBool::Request::SharedPtr request,
+                              const example_interfaces::srv::SetBool::Response::SharedPtr response)
     {
-        RCLCPP_INFO(this->get_logger(), "Data: %lld", msg->data);
+        if (request->data)
+        {
+            counter_ = 0;
+            response->message = std::string("Counter has been reset.");
+            response->success = true;
+        }
+        else
+        {
+            response->message = "Counter has not been reset.";
+            response->success = false;
+        }
+        RCLCPP_INFO(this->get_logger(), "%s", response->message.c_str());
     }
-
     rclcpp::Subscription<example_interfaces::msg::Int64>::SharedPtr subscriber_;
     rclcpp::Publisher<example_interfaces::msg::Int64>::SharedPtr publisher_;
+    rclcpp::Service<example_interfaces::srv::SetBool>::SharedPtr server_;
     int newNumber_;
     int counter_ = 1;
 
